@@ -36,19 +36,87 @@ async def chat(
 ) -> ChatResponse:
     """Answer a question grounded in the specified report's full database context."""
     # --- 1. Validate report exists and load results ---
-    report = await db.scalar(
-        select(Report)
-        .where(Report.id == body.report_id)
-        .options(selectinload(Report.test_results))
-    )
+    report = None
+    try:
+        report = await db.scalar(
+            select(Report)
+            .where(Report.id == body.report_id)
+            .options(selectinload(Report.test_results))
+        )
+    except Exception as db_exc:
+        logger.warning("SQLAlchemy chat query note: %s", db_exc)
+
     if report is None:
+        try:
+            try:
+                from db.supabase_client import get_supabase_client
+            except ImportError:
+                from backend.db.supabase_client import get_supabase_client
+
+            sb_client = get_supabase_client()
+            if sb_client:
+                rep_res = sb_client.table("reports").select("*").eq("id", str(body.report_id)).execute()
+                if rep_res.data:
+                    r_data = rep_res.data[0]
+                    tr_res = sb_client.table("test_results").select("*").eq("report_id", str(body.report_id)).execute()
+
+                    from app.models import ResultStatus, TestResult
+                    report = Report(
+                        id=UUID(r_data["id"]),
+                        user_id=UUID(r_data["user_id"]),
+                        file_url=r_data["file_url"],
+                        report_type=r_data.get("report_type", "explained"),
+                        ai_summary=r_data.get("ai_summary"),
+                        raw_text=r_data.get("raw_text"),
+                        result_explanations=r_data.get("result_explanations"),
+                    )
+                    test_results = []
+                    for tr in (tr_res.data or []):
+                        st_enum = ResultStatus.NORMAL
+                        raw_st = str(tr.get("status", "NORMAL")).upper()
+                        if "HIGH" in raw_st:
+                            st_enum = ResultStatus.HIGH
+                        elif "LOW" in raw_st:
+                            st_enum = ResultStatus.LOW
+
+                        test_results.append(
+                            TestResult(
+                                id=UUID(tr["id"]),
+                                report_id=UUID(tr["report_id"]),
+                                marker_name=tr.get("biomarker") or tr.get("marker_name", "Unknown"),
+                                value=tr.get("value"),
+                                value_text=tr.get("value_text"),
+                                unit=tr.get("unit", ""),
+                                reference_min=tr.get("reference_min"),
+                                reference_max=tr.get("reference_max"),
+                                status=st_enum,
+                            )
+                        )
+                    report.test_results = test_results
+        except Exception as sb_err:
+            logger.warning("Supabase REST chat fallback note: %s", sb_err)
+
+    if report is None:
+        # If RAG can still process directly via Groq/Gemini, attempt rag_service query before raising
+        try:
+            try:
+                from services.rag_service import query_report
+            except ImportError:
+                from backend.services.rag_service import query_report
+            rag_res = await query_report(report_id=body.report_id, user_question=body.message)
+            answer_text = rag_res.get("answer", "")
+            if answer_text:
+                return ChatResponse(answer=answer_text, used_chunks=rag_res.get("used_chunks", ["rag_context"]))
+        except Exception:
+            pass
+
         raise AppError(
             code="report_not_found",
             message="Report not found.",
             status_code=404,
         )
 
-    if report.report_type not in {"explained", "parsed"}:
+    if report.report_type not in {"explained", "parsed", "parsing_failed"}:
         raise AppError(
             code="report_not_ready",
             message=(

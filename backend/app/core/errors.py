@@ -75,3 +75,23 @@ def register_exception_handlers(app: FastAPI) -> None:
                 details={"issues": exc.errors()},
             ),
         )
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
+        print(f"[DEBUG] Global exception caught: {type(exc).__module__}.{type(exc).__name__}: {exc}")
+        if exc.__class__.__name__ == "AppError" or (hasattr(exc, "status_code") and hasattr(exc, "code")):
+            status_code = getattr(exc, "status_code", 400)
+            code = getattr(exc, "code", "app_error")
+            message = getattr(exc, "message", str(exc))
+            details = getattr(exc, "details", None)
+            return JSONResponse(
+                status_code=status_code,
+                content=error_body(code=code, message=message, details=details),
+            )
+        import logging
+        logging.getLogger("app.core.errors").error("Unhandled exception: %s", exc, exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content=error_body(code="internal_error", message=str(exc)),
+        )
+

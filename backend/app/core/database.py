@@ -50,3 +50,4 @@ async def get_db() -> AsyncGenerator[AsyncSession | None, None]:
             yield session
     except Exception as exc:
         logger.warning("SQLAlchemy async session warning: %s", exc)
+        raise
