@@ -1,186 +1,179 @@
 # MedExplain AI
 
-AI-powered educational medical report interpreter (Alibaba Cloud AI Hackathon — Pakistan track).
+AI-powered educational medical report interpreter with multimodal extraction and lightning-fast RAG chat.
 
-Upload a lab report → plain-language explanations → abnormal flags → report-grounded Q&A → doctor-visit questions → trend comparison. Supports English, Urdu, Hindi, and Arabic.
+Upload a lab report → plain-language explanations → abnormal flags → report-grounded Q&A → doctor-visit guidance. Supports PDF, JPG, and PNG medical reports.
 
-**This is an educational tool only.** It never diagnoses, prescribes, or replaces a licensed clinician.
+> **Disclaimer:** **This is an educational tool only.** It never diagnoses conditions, prescribes medications, or replaces a licensed clinician.
 
-## Stack
+---
 
-| Layer | Choice |
-| --- | --- |
-| Frontend | Next.js (App Router) + React + Tailwind CSS |
-| Backend | FastAPI (Python 3.11+) |
-| LLM | Qwen via DashScope (primary); OpenAI / Gemini fallback |
-| OCR | Alibaba OCR (primary); Tesseract fallback |
-| Vector DB | Qdrant |
-| Relational DB | PostgreSQL |
-| Object storage | Alibaba OSS (primary); local filesystem for dev |
+## Technical Stack & Architecture
 
-**Backend dependency management:** `requirements.txt` + `pip` (chosen for simpler Docker and hackathon setup vs Poetry).
+| Component | Technology | Description |
+| --- | --- | --- |
+| **Frontend** | Next.js 15 (App Router) + TypeScript + Tailwind CSS | Interactive drag-and-drop report upload and dynamic interpretation UI. |
+| **Backend** | FastAPI (Python 3.11+) | Async REST API service managing upload pipelines, AI services, and database persistence. |
+| **Database & Vector Store** | Supabase (PostgreSQL + `pgvector`) | Stores structured `reports`, `test_results`, and vector `embeddings` for RAG context. |
+| **Object Storage** | Supabase Storage (`medical-reports` bucket) | Secure cloud bucket storage for uploaded PDF/Image report documents. |
+| **Multimodal Extraction** | Google Gemini API (`gemini-1.5-flash`) | Analyzes raw lab document images/PDFs and extracts structured JSON summary & biomarkers. |
+| **Vector Embeddings** | Google Gemini Embeddings (`models/text-embedding-004`) | Generates semantic vector embeddings for document-grounded RAG retrieval. |
+| **RAG LLM Inference** | Groq API (`llama-3.3-70b-versatile`) | Ultra-fast inference powering report-grounded patient QA with LangChain Groq. |
 
-## Repository layout
+---
+
+## Project Flow & Pipeline
 
 ```
-/frontend          Next.js app
-/backend           FastAPI app
-/docker-compose.yml
-/.env.example
+┌─────────────────┐       ┌─────────────────┐       ┌────────────────────────┐
+│  Next.js UI     │ ───>  │  FastAPI        │ ───>  │  Supabase Storage      │
+│  File Upload    │       │  /api/v1/upload │       │  (medical-reports)     │
+└─────────────────┘       └────────┬────────┘       └────────────────────────┘
+                                   │
+                                   ▼
+                          ┌────────────────────────┐
+                          │  Gemini 1.5 Flash      │
+                          │  Multimodal Extraction │
+                          └────────┬───────────────┘
+                                   │ (Structured JSON: summary + biomarkers)
+                                   ▼
+                          ┌────────────────────────┐
+                          │  Supabase PostgreSQL   │
+                          │  reports & test_results│
+                          └────────┬───────────────┘
+                                   │
+┌─────────────────┐                │
+│  User Chat Q&A  │ ───────────────┤
+│  /api/chat      │                ▼
+└────────┬────────┘       ┌────────────────────────┐
+         │                │  Gemini Embeddings     │
+         │                │  (text-embedding-004)  │
+         │                └────────┬───────────────┘
+         │                         │ (Context Retrieval via pgvector)
+         ▼                         ▼
+┌──────────────────────────────────────────────────┐
+│  Groq LLM (llama-3.3-70b-versatile)              │
+│  Empathetic, Grounded Patient Response           │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
+## Repository Structure
+
+```
+/frontend                  Next.js App Router frontend application
+  ├── src/app              App pages (landing, /upload, /reports/[id])
+  ├── src/lib/supabase.ts  Supabase browser client
+  └── src/lib/api.ts       Backend API integration module
+/backend                   FastAPI Python backend application
+  ├── db/supabase_client.py Supabase Python SDK client
+  ├── app/api/reports.py   Upload & report retrieval endpoints
+  ├── app/api/chat.py      Chat Q&A endpoint
+  ├── services/ai_service.py Gemini multimodal OCR & JSON extraction
+  └── services/rag_service.py Hybrid RAG pipeline (Gemini Embeddings + Groq LLM)
+/supabase/migrations       Database SQL scripts (01_init.sql)
+/.env                      Backend & root environment variables
 /README.md
 ```
 
+---
+
 ## Prerequisites
 
-- Node.js 20+ and npm
-- Python 3.11+ (3.12 works)
-- Docker Desktop (for Postgres + Qdrant)
+- **Node.js 20+** and `npm`
+- **Python 3.11+**
+- **Supabase Project** (PostgreSQL + Storage enabled)
+- **Google Gemini API Key**
+- **Groq API Key**
 
-## Quick start
+---
 
-### 1. Environment
+## Environment Setup
 
-```bash
-cp .env.example .env
+### 1. Backend Environment (`backend/.env`)
+
+Create or update `backend/.env`:
+
+```env
+ENVIRONMENT=development
+FRONTEND_ORIGIN=http://localhost:3000,http://localhost:3001
+
+# Supabase Credentials & Database Connection
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_ANON_KEY="your-anon-key"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+SUPABASE_DB_URL="postgresql://postgres:password@db.your-project.supabase.co:5432/postgres"
+DATABASE_URL="postgresql://postgres:password@db.your-project.supabase.co:5432/postgres"
+STORAGE_PROVIDER=supabase
+
+# AI Credentials
+LLM_PROVIDER=gemini
+GEMINI_API_KEY="your-gemini-api-key"
+GROQ_API_KEY="your-groq-api-key"
 ```
 
-Fill in API keys when you need OCR/LLM. Local skeleton runs without them.
+### 2. Frontend Environment (`frontend/.env.local`)
 
-### 2. Databases (Postgres + Qdrant)
+Create or update `frontend/.env.local`:
 
-```bash
-docker compose up -d
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 ```
 
-Default `docker compose up` starts **Postgres** (`localhost:5432`) and **Qdrant** (`localhost:6333`).
+---
 
-To also run the app containers:
+## Database Migration (Supabase SQL)
 
-```bash
-docker compose --profile full up -d --build
-```
+Apply the SQL migration in `supabase/migrations/01_init.sql` using your Supabase SQL Editor:
 
-### 3. Backend
+1. Enables `pgvector` and `uuid-ossp` extensions.
+2. Creates `reports`, `test_results`, `users`, and `embeddings` tables.
+3. Provisions the `medical-reports` storage bucket with public read/write RLS policies.
+
+---
+
+## Quick Start
+
+### 1. Run the Backend (FastAPI)
 
 ```bash
 cd backend
+
+# Create & activate virtual environment
 python -m venv .venv
+.\.venv\Scripts\Activate.ps1   # Windows
+# source .venv/bin/activate    # macOS / Linux
 
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
-
-# macOS / Linux
-# source .venv/bin/activate
-
+# Install dependencies
 pip install -r requirements.txt
+
+# Start FastAPI server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Health check: [http://localhost:8000/health](http://localhost:8000/health) → `{"status":"ok"}`
+- **API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
 
-API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-
-### 4. Frontend
+### 2. Run the Frontend (Next.js)
 
 ```bash
 cd frontend
+
+# Install dependencies
 npm install
+
+# Start Next.js development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+- **Web App:** [http://localhost:3000](http://localhost:3000)
 
-## Provider switches
+---
 
-Set in `.env` (loaded by `backend/app/core/config.py`):
+## Safety & Privacy
 
-| Variable | Values | Purpose |
-| --- | --- | --- |
-| `LLM_PROVIDER` | `dashscope` \| `openai` \| `gemini` | Chat / explanation model |
-| `OCR_PROVIDER` | `alibaba` \| `tesseract` | Report text extraction |
-| `STORAGE_PROVIDER` | `oss` \| `local` | Uploaded file storage |
-
-Business logic should depend on these switches, not hard-coded vendor SDKs.
-
-## Safety & privacy
-
-- Every LLM call must use a system prompt that forbids diagnosis, prescriptions, dosages, and “you have X” language, and ends explanations with a clinician disclaimer.
-- RAG answers only from retrieved report chunks; otherwise refuse to guess.
-- Never log raw file contents or PII. Keep secrets in environment variables only.
-
-## Database migrations (Alembic)
-
-Schema lives in `backend/app/models`. Migrations are managed with Alembic (async SQLAlchemy + asyncpg).
-
-```bash
-# 1. Start Postgres (preferred: docker-compose)
-docker compose up -d postgres
-
-# 2. Apply migrations
-cd backend
-.\.venv\Scripts\Activate.ps1   # Windows
-# source .venv/bin/activate    # macOS / Linux
-alembic upgrade head
-
-# 3. Optional: insert one fake user, report, and 3 test_results
-python -m scripts.seed_db
-```
-
-Useful checks:
-
-```bash
-alembic current
-alembic history
-docker compose exec postgres psql -U medexplain -d medexplain -c "\dt"
-```
-
-## LLM parsing (OCR → structured rows)
-
-After OCR, `LLMService.parse_report(raw_text)` extracts JSON rows. Status flags are
-computed by `ReferenceRangeService` in code (LLM status is fallback only when
-ranges are missing). Failures set `report_type=parsing_failed` (no guessed rows).
-
-```bash
-# Qwen (requires key):
-# LLM_PROVIDER=dashscope
-# DASHSCOPE_API_KEY=sk-...
-
-# Local fixture parsing without cloud (deterministic tabular OCR parser):
-# LLM_PROVIDER=offline
-
-curl -F "file=@fixtures/lab_lipid.png" http://localhost:8000/api/v1/upload
-curl http://localhost:8000/api/v1/reports/<id>
-```
-
-Pluggable via `OCR_PROVIDER` (`tesseract` local/dev, `alibaba` stub until credentials).
-
-```bash
-# Ensure Tesseract is installed, then:
-cd backend
-alembic upgrade head   # adds reports.raw_text
-uvicorn app.main:app --reload --port 8000
-
-# Upload then inspect OCR text:
-curl -F "file=@fixtures/lab_cbc.png" http://localhost:8000/api/v1/upload
-curl http://localhost:8000/api/v1/reports/<report_id>/raw-text
-```
-
-Synthetic fixtures (not real patient data): `backend/fixtures/lab_*.png` via `python fixtures/generate_lab_fixtures.py`.
-
-```bash
-# Backend must be running on :8000
-# Frontend: open http://localhost:3000 → Upload Report
-
-# Or curl:
-curl -F "file=@backend/fixtures/sample-report.png" http://localhost:8000/api/v1/upload
-```
-
-Uploads are validated by magic bytes (PDF/JPG/PNG only, max 15MB), stored via `StorageService` (`STORAGE_PROVIDER=local` writes under `backend/uploads/`), and create a `reports` row with `report_type=pending`.
-
-## Manual smoke test
-
-1. `docker compose up -d` — Postgres and Qdrant healthy.
-2. `cd backend && alembic upgrade head` — creates `users`, `reports`, `test_results`.
-3. Start backend → `curl http://localhost:8000/health` returns 200 and `{"status":"ok"}`.
-4. Start frontend → landing page shows **MedExplain AI** and a non-functional **Upload Report** button.
-5. Confirm browser console has no CORS errors when calling `/health` from the frontend origin (`http://localhost:3000`).
+- All AI responses enforce system prompts forbidding diagnosis, prescriptions, or treatment advice.
+- Patient responses include a clear medical disclaimer advising consultation with a licensed healthcare professional.
+- Data stored in Supabase is scoped to document UUIDs with strict privacy boundaries.

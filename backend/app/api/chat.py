@@ -78,7 +78,19 @@ async def chat(
         for t in history_turns
     ]
 
-    # --- 4. Call the chat service ---
+    # --- 4. Call the RAG service / Gemini query_report ---
+    try:
+        try:
+            from services.rag_service import query_report
+        except ImportError:
+            from backend.services.rag_service import query_report
+        rag_res = await query_report(report_id=body.report_id, user_question=body.message)
+        answer_text = rag_res.get("answer", "")
+        used_chunks = rag_res.get("used_chunks", ["rag_context"])
+        return ChatResponse(answer=answer_text, used_chunks=used_chunks)
+    except Exception as exc:
+        logger.warning("RAG service query_report fallback: %s", exc)
+
     result = await chat_svc.answer(
         report_id=body.report_id,
         message=body.message,

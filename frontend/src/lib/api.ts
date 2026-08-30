@@ -46,10 +46,14 @@ export type ReportResponse = {
 export function uploadReportWithProgress(
   file: File,
   onProgress: (percent: number) => void,
+  userId?: string,
 ): Promise<UploadResponse> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_BASE_URL}/api/v1/upload`);
+    if (userId) {
+      xhr.setRequestHeader("X-User-Id", userId);
+    }
     xhr.responseType = "json";
 
     xhr.upload.onprogress = (event) => {
@@ -75,6 +79,9 @@ export function uploadReportWithProgress(
 
     const form = new FormData();
     form.append("file", file);
+    if (userId) {
+      form.append("user_id", userId);
+    }
     xhr.send(form);
   });
 }

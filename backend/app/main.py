@@ -41,6 +41,21 @@ app.add_middleware(
 
 app.include_router(api_router)
 
+
+@app.post("/api/chat")
+async def direct_api_chat(body: dict):
+    """Direct /api/chat endpoint calling query_report."""
+    try:
+        from services.rag_service import query_report
+    except ImportError:
+        from backend.services.rag_service import query_report
+    report_id = body.get("report_id") or body.get("reportId")
+    message = body.get("message") or body.get("question") or ""
+    if not report_id:
+        return {"error": "report_id is required"}
+    res = await query_report(report_id=report_id, user_question=message)
+    return res
+
 # Serve locally stored uploads in development (OSS URLs are absolute elsewhere).
 if settings.storage_provider == "local":
     upload_root = Path(settings.local_storage_path).resolve()

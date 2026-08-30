@@ -60,12 +60,30 @@ function formatResultValue(row: TestResultResponse): string {
 
 function explanationFor(
   report: ReportResponse,
-  testId: string,
-): string | null {
+  row: TestResultResponse,
+): string {
   const hit = report.result_explanations?.find(
-    (item) => item.test_result_id === testId,
+    (item: any) =>
+      item.test_result_id === row.id ||
+      item.biomarker === row.marker_name ||
+      item.marker_name === row.marker_name,
   );
-  return hit?.explanation ?? null;
+  if (hit?.explanation) {
+    return hit.explanation;
+  }
+
+  const refStr =
+    row.reference_min != null || row.reference_max != null
+      ? `reference range of ${row.reference_min ?? "—"}–${row.reference_max ?? "—"} ${row.unit || ""}`.trim()
+      : "listed range";
+
+  if (row.status === "HIGH") {
+    return `${row.marker_name} (${formatResultValue(row)}) is higher than the expected ${refStr}. Elevated results should be reviewed with your physician to evaluate underlying factors.`;
+  }
+  if (row.status === "LOW") {
+    return `${row.marker_name} (${formatResultValue(row)}) is lower than the expected ${refStr}. Below-range results should be discussed with your doctor.`;
+  }
+  return `${row.marker_name} (${formatResultValue(row)}) is within typical normal reference parameters.`;
 }
 
 export default function ReportPage() {
@@ -198,7 +216,7 @@ export default function ReportPage() {
                   {sortedResults.map((row) => {
                     const tone = statusTone(row.status, row);
                     const open = openId === row.id;
-                    const explanation = explanationFor(report, row.id);
+                    const explanation = explanationFor(report, row);
                     return (
                       <li key={row.id}>
                         <button
@@ -235,8 +253,7 @@ export default function ReportPage() {
                           </div>
                           {open && (
                             <p className="mt-3 border-t border-[var(--line)] pt-3 font-sans text-sm leading-relaxed text-foreground/80">
-                              {explanation ||
-                                "Explanation is still being prepared for this result."}
+                              {explanation}
                             </p>
                           )}
                         </button>

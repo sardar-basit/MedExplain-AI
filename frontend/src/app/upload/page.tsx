@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { uploadReportWithProgress } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 const ACCEPTED = ".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png";
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -45,13 +46,33 @@ export default function UploadPage() {
     [chooseFile],
   );
 
+  const getUserId = async (): Promise<string | undefined> => {
+    try {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user?.id) return data.user.id;
+    } catch {
+      // Supabase auth user not logged in
+    }
+
+    if (typeof window !== "undefined") {
+      let anonId = localStorage.getItem("medexplain_user_id");
+      if (!anonId) {
+        anonId = crypto.randomUUID();
+        localStorage.setItem("medexplain_user_id", anonId);
+      }
+      return anonId;
+    }
+    return undefined;
+  };
+
   const onUpload = async () => {
     if (!selected || uploading) return;
     setUploading(true);
     setProgress(0);
     setError(null);
     try {
-      const result = await uploadReportWithProgress(selected, setProgress);
+      const userId = await getUserId();
+      const result = await uploadReportWithProgress(selected, setProgress, userId);
       startTransition(() => {
         router.push(`/reports/${result.report_id}`);
       });

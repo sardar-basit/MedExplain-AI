@@ -32,7 +32,14 @@ class Settings(BaseSettings):
     llm_provider: Literal["dashscope", "openai", "gemini", "offline"] = "dashscope"
     # tesseract = local/dev default; alibaba = cloud primary (stub until credentials)
     ocr_provider: Literal["alibaba", "tesseract"] = "tesseract"
-    storage_provider: Literal["oss", "local"] = "local"
+    storage_provider: Literal["oss", "local", "supabase"] = "supabase"
+
+    # Supabase Infrastructure
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_role_key: str = ""
+    supabase_db_url: str = ""
+    supabase_storage_bucket: str = "medical-reports"
 
     # LLM / DashScope
     dashscope_api_key: str = ""
@@ -40,6 +47,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     gemini_api_key: str = ""
+    groq_api_key: str = ""
 
     # Alibaba Cloud OCR
     alibaba_ocr_access_key_id: str = ""

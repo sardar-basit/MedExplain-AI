@@ -58,8 +58,46 @@ class OssStorageService(StorageService):
         )
 
 
+class SupabaseStorageService(StorageService):
+    """Supabase Object Storage implementation for medical-reports bucket."""
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        self._settings = settings or get_settings()
+        self._bucket_name = getattr(self._settings, "supabase_storage_bucket", "medical-reports")
+
+    async def save(self, *, data: bytes, extension: str, content_type: str) -> str:
+        try:
+            from db.supabase_client import get_supabase_client
+        except ImportError:
+            from backend.db.supabase_client import get_supabase_client
+
+        client = get_supabase_client()
+        safe_ext = extension if extension.startswith(".") else f".{extension}"
+        filename = f"{uuid.uuid4().hex}{safe_ext}"
+
+        if not client:
+            local_svc = LocalStorageService(self._settings)
+            return await local_svc.save(data=data, extension=extension, content_type=content_type)
+
+        def _upload() -> str:
+            client.storage.from_(self._bucket_name).upload(
+                path=filename,
+                file=data,
+                file_options={"content-type": content_type, "upsert": "true"},
+            )
+            return client.storage.from_(self._bucket_name).get_public_url(filename)
+
+        try:
+            return await asyncio.to_thread(_upload)
+        except Exception:
+            local_svc = LocalStorageService(self._settings)
+            return await local_svc.save(data=data, extension=extension, content_type=content_type)
+
+
 def get_storage_service(settings: Settings | None = None) -> StorageService:
     cfg = settings or get_settings()
+    if cfg.storage_provider == "supabase":
+        return SupabaseStorageService(cfg)
     if cfg.storage_provider == "local":
         return LocalStorageService(cfg)
     if cfg.storage_provider == "oss":

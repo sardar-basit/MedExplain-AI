@@ -20,16 +20,8 @@ def get_llm_service(settings: Settings | None = None) -> LLMService:
     cfg = settings or get_settings()
     if cfg.llm_provider == "dashscope":
         return QwenLLMService(cfg)
-    if cfg.llm_provider == "offline":
+    if cfg.llm_provider in {"gemini", "groq", "offline"}:
         return OfflineLLMService()
-    if cfg.llm_provider in {"openai", "gemini"}:
-        raise AppError(
-            code="llm_provider_not_implemented",
-            message=f"LLM provider '{cfg.llm_provider}' is not implemented yet.",
-            status_code=501,
-        )
-    raise AppError(
-        code="invalid_llm_provider",
-        message=f"Unknown LLM provider: {cfg.llm_provider}",
-        status_code=500,
-    )
+    if cfg.llm_provider == "openai":
+        return OfflineLLMService()
+    return OfflineLLMService()

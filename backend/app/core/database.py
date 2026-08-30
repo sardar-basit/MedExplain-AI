@@ -39,6 +39,14 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
-        yield session
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+async def get_db() -> AsyncGenerator[AsyncSession | None, None]:
+    try:
+        async with AsyncSessionLocal() as session:
+            yield session
+    except Exception as exc:
+        logger.warning("SQLAlchemy async session warning: %s", exc)

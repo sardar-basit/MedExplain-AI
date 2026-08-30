@@ -21,18 +21,6 @@ __all__ = [
 def get_chat_service(settings: Settings | None = None) -> ChatService:
     """Return the chat service matching LLM_PROVIDER."""
     cfg = settings or get_settings()
-    if cfg.llm_provider == "offline":
-        return OfflineChatService()
     if cfg.llm_provider == "dashscope":
         return QwenChatService(cfg)
-    if cfg.llm_provider in {"openai", "gemini"}:
-        raise AppError(
-            code="chat_provider_not_implemented",
-            message=f"Chat via LLM_PROVIDER='{cfg.llm_provider}' is not implemented yet.",
-            status_code=501,
-        )
-    raise AppError(
-        code="invalid_llm_provider",
-        message=f"Unknown LLM_PROVIDER: {cfg.llm_provider}",
-        status_code=500,
-    )
+    return OfflineChatService()
