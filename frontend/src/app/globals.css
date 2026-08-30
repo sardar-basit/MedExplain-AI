@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #e8f1f0;
+  --foreground: #14323a;
+  --brand: #0f6b6d;
+  --brand-deep: #0a4a4c;
+  --mist: #f4faf9;
+  --accent: #c45c26;
+  --line: rgba(20, 50, 58, 0.12);
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-sans), ui-sans-serif, sans-serif;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(2%, -3%, 0) scale(1.04);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.8s ease-out both;
+}
+
+.animate-rise-delay {
+  animation: rise 0.9s ease-out 0.12s both;
+}
+
+.animate-rise-delay-2 {
+  animation: rise 1s ease-out 0.24s both;
+}
+
+.hero-glow {
+  animation: drift 14s ease-in-out infinite;
+}
+
+.brand-underline {
+  background: linear-gradient(90deg, var(--brand), #3a9b8f, var(--brand));
+  background-size: 200% 100%;
+  animation: shimmer 6s linear infinite;
+}
