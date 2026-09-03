@@ -29,6 +29,8 @@ export type TestResultResponse = {
 export type ResultExplanation = {
   test_result_id: string;
   explanation: string;
+  biomarker?: string;
+  marker_name?: string;
 };
 
 export type ReportResponse = {

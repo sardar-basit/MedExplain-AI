@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   fetchReport,
   type ReportResponse,
+  type ResultExplanation,
   type TestResultResponse,
 } from "@/lib/api";
 
@@ -63,7 +64,7 @@ function explanationFor(
   row: TestResultResponse,
 ): string {
   const hit = report.result_explanations?.find(
-    (item: any) =>
+    (item: ResultExplanation) =>
       item.test_result_id === row.id ||
       item.biomarker === row.marker_name ||
       item.marker_name === row.marker_name,
