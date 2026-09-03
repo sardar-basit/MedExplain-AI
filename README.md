@@ -1,5 +1,7 @@
 # MedExplain AI
 
+![MedExplain AI Header Banner](assets/banner.png)
+
 AI-powered educational medical report interpreter with multimodal extraction and lightning-fast RAG chat.
 
 Upload a lab report → plain-language explanations → abnormal flags → report-grounded Q&A → doctor-visit guidance. Supports PDF, JPG, and PNG medical reports.
